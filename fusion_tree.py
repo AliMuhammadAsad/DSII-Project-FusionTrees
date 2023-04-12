@@ -7,22 +7,20 @@ class Node:
         self.key_count = 0  # Count of number of keys in the Node
 
         # Fusion Tree Specific Properties
-        self.isLeaf = True
-        self.m = 0
-        self.b_bits = []    # distinguishing bits
-        self.m_bits = []    # bits of constant m
-        self.gap = 0
-        self.node_sketch = 0
-        self.mask_sketch = 0
-        self.mask_q = 0     # used in parallel comparison
+        self.isLeaf = True      # Boolean indicating whether the node is a leaf node or not
+        self.m = 0              # Integer repesenting the number of keys in a node
+        self.b_bits = []        # List storing the distinguishing bits
+        self.m_bits = []        # List storing bits of constant 'm'
+        self.gap = 0            # An integer representing the gap between keys
+        self.node_sketch = 0    # Integer representing the node sketch
+        self.mask_sketch = 0    # Integer representing the mask sketch
+        self.mask_q = 0         # Integer used in parallel comparison
 
-        self.mask_b = 0
-        self.mask_bm = 0
+        self.mask_b = 0         # Integer for mask_b
+        self.mask_bm = 0        # Integer for mask_bm
 
-        self.keys_max = max_keys
-        if max_keys != None:
-            # an extra space is assigned so that splitting can be
-            # done easily
+        self.keys_max = max_keys    # Max keys allowed in a node
+        if max_keys != None: # If max_keys are not None, then keys and children are initialized to None values to have space for future operations like splitting
             self.keys = [None for i in range(max_keys + 1)]
             self.children = [None for i in range(max_keys + 2)]
 
@@ -31,45 +29,70 @@ class FusionTree:
     this example. Practically, node is recalculated if its keys are
     modified."""
 
-    def __init__(self, word_len = 64, c = 1/5):
-        self.keys_max = int(pow(word_len, c))
-        self.keys_max = max(self.keys_max, 2)
-        self.w = int(pow(self.keys_max, 1/c))
-        self.keys_min = self.keys_max // 2
+    def __init__(self, word_len = 64, c = 1/5)-> None:
+        ''' Constructor for the Fusion Tree Class.
+        Args: 
+        - self: mandatory reference to this object
+        - word_len : Length of the keys that will be stored in this Tree
+        - c : branching factor or parameter used to determine the number of keys each node can hold
+
+        Default Value of word_len is 64 and of c is 1/5 as a Fusion Tree has a branching factor of w^1/5 which gives it a height of O(logw(n)). The default values set max keys allowed in a node to be 2 by the property of B-Trees as a Fusion Tree is essentially a B-Tree
+
+        Returns: None
+        '''
+        
+        self.keys_max = int(pow(word_len, c))   # max keys allowed in a node
+        self.keys_max = max(self.keys_max, 2)   # sets max keys to 2 if the max keys are less than 2 - ensures at least 2 keys per node
+        self.w = int(pow(self.keys_max, 1/c))   # sets the value of w / word_len
+        self.keys_min = self.keys_max // 2      # minimum number of keys allowed in a node
 
         print("word_len = ", self.w, " max_keys = ", self.keys_max)
 
+        #Initializes the root node of this tree with max number of keys
         self.root = Node(self.keys_max)
         self.root.isLeaf = True
 
-    def getDiffBits(self, keys):
-        res = []
+    def getDiffBits(self, keys) -> list:
+        ''' A method that returns a list of of the bits that are different between all pairs of keys given as a list
+        Args:
+        - self: mandatory reference to this object
+        - keys: list of keys to compare
 
-        bits = 0
-        for i in range(len(keys)):
-            if keys[i] == None:
+        Returns: a list of different bits        
+        '''
+        diff_bits = [] # list to store different bits
+        bits = 0 # variable to store different bits as bit mask
+        for i in range(len(keys)): 
+            if keys[i] == None: # break if we encounter a None key
                 break
-            for j in range(i):
-                w = self.w
-                
-                while (keys[i] & 1 << w) == (keys[j] & 1 << w) and w >= 0:
+            for j in range(i): # Iterating over previous keys
+                w = self.w  #set w as word length
+                #Find the position of the first different bit and update the bit mask 
+                while (keys[i] & 1 << w) == (keys[j] & 1 << w) and w >= 0:  
                     w -= 1
-                if w >= 0:
+                if w >= 0: 
                     bits |= 1 << w
-        
+                    # The |= is the in-place OR operator which reassigns the bit value
         i = 0
-        while i < self.w:
-            if bits & (1 << i) > 0:
-                res.append(i)
+        while i < self.w:   # Iterate over word length
+            if bits & (1 << i) > 0: # if the bit at position i is set, add it to the list
+                diff_bits.append(i)
             i += 1
-        return res
+        return diff_bits
 
-    def getConst(self, b_bits):
-        r = len(b_bits)
-        m_bits = [0 for i in range(r)]
-        for t in range(r):
-            mt = 0
-            flag = True
+    def getConst(self, b_bits) -> tuple:
+        ''' A method that calculates the constant 'm' and the corresponding 'm_bits' given the list of distinguishing 'b_bits'
+        Args:
+        - self: mandatory reference to this object
+        - b_bits: the bits that are different between all pairs of keys
+
+        Returns: a tuple containing a list 'm_bits' corresponding to the constant 'm', and the constant 'm'
+        '''
+        r = len(b_bits) # Total number of different bits
+        m_bits = [0 for i in range(r)] # Initializing a list to store m_bits with default values of 0 and length equal to r
+        for t in range(r): # iterating over the number of different bits
+            mt = 0 # mt which counts the m bits for each iteration
+            flag = True # setting a flag
             while flag:
                 flag = False
                 for i in range(r):
@@ -79,117 +102,165 @@ class FusionTree:
                         if flag:
                             break
                         for k in range(t):
+                            # if mt equal the difference between b_bits[i], b_bits[j] plus m_bits[k], set flag to True
                             if mt == b_bits[i] - b_bits[j] + m_bits[k]:
                                 flag = True
                                 break
-                if flag == True:
+                if flag == True: #If flag is true, increment mt
                     mt += 1
-            m_bits[t] = mt
-        
+            m_bits[t] = mt #set the t-th element of m_bits to mt
         m = 0
-        for i in m_bits:
-            m |= 1 << i
-        return m_bits, m
+        for i in m_bits: # iterate over m_bits
+            m |= 1 << i # set the bit at position i in m
+        return m_bits, m 
                         
-    def getMask(self, mask_bits):
-        res = 0
+    def getMask(self, mask_bits) -> int:
+        ''' A method that returns a mask for a given list of bits.
+        The mask is created by setting the bits to 1 at the positions specified in the 'mask_bits' list.
+        Args:
+        - self: mandatory reference to this object
+        - mask_bits: A list of bit positions
+
+        Returns: an integer mask with the specified bit positions set to 1 
+        '''
+        res = 0 # Mask
         for i in mask_bits:
-            res |= 1 << i
+            res |= 1 << i # Set the bit at position i in the result
         return res
 
-    def initiateNode(self, node):
-        if node.key_count != 0:
-            node.b_bits = self.getDiffBits(node.keys)
-            node.m_bits, node.m = self.getConst(node.b_bits)
-            node.mask_b = self.getMask(node.b_bits)
+    def initiateNode(self, node) -> None:
+        ''' Initializes a given node by calculating and storing different bits, constants, masks, and sketch information. 
+        This method should be called once all keys have been inserted
+        Args:
+        - self: mandatory reference to this object
+        - node: a given node
 
-            temp = []
-            # bm[i] will be position of b[i] after its multiplication
-            # with m[i]. mask_bm will isolate these bits.
+        Returns: None
+        '''
+        if node.key_count != 0: # If node has keys
+            node.b_bits = self.getDiffBits(node.keys) # Calculate the different bits for the node's keys
+            node.m_bits, node.m = self.getConst(node.b_bits) # Calculate the constants m_bits and m
+            node.mask_b = self.getMask(node.b_bits) # Calculate the mask for b_bits
+
+            temp = [] # Initialize temporary list to store modified b_bits
+
+            # Calculate the position of b[i] after its multiplication with m[i] and store them in temp
             for i in range(len(node.b_bits)):
                 temp.append(node.b_bits[i] + node.m_bits[i])
-            node.mask_bm = self.getMask(temp)
+            node.mask_bm = self.getMask(temp) # Calculate the mask for modified b_bits
 
-            # used to maintain sketch lengths
+            # Sketch lengths to maintain node sketch
             r3 = int(pow(node.key_count, 3))
 
-            node.node_sketch = 0
-            sketch_len = r3 + 1
-            node.mask_sketch = 0
-            node.mask_q = 0
+            node.node_sketch = 0 # Initialize node sketch
+            sketch_len = r3 + 1 # set sketch length
+            node.mask_sketch = 0 # initialize mask_sketch
+            node.mask_q = 0 #initialize mask_q
+
+            # Calculate the node sketch, mask_q, and mask_sketch for each key in the node 
             for i in range(node.key_count):
-                sketch = self.sketchApprox(node, node.keys[i])
-                temp = 1 << r3
-                temp |= sketch
-                node.node_sketch <<= sketch_len
-                node.node_sketch |= temp
-                node.mask_q |= 1 << i * (sketch_len)
-                node.mask_sketch |= (1 << (sketch_len - 1)) << i * (sketch_len)
+                sketch = self.sketchApprox(node, node.keys[i]) # sketch approximation
+                temp = 1 << r3 # temp mask
+                temp |= sketch # add the sketch to the temp mask 
+                node.node_sketch <<= sketch_len # shift node sketch left by sketch_len bits
+                node.node_sketch |= temp # add temporary mask to the node sketch 
+                node.mask_q |= 1 << i * (sketch_len) # Update mask_q
+                node.mask_sketch |= (1 << (sketch_len - 1)) << i * (sketch_len) # Update mask_sketch
         return
     
     def sketchApprox(self, node, x):
-        xx = x & node.mask_b
-        res = xx * node.m
+        ''' Computes the sketch approximation of a given node and key 'x'. The approximation helps to quickly compare the keys.
+        With standard word operations, it is difficult to directly compute the perfect sketch of a key in constant time. So we calculate the approximate sketch which does have all important bits but also some additional useless bits spread out in a predicatable pattern. The ApproximateSketch also preserves the order of the keys
+        Args:
+        - self: mandatory reference to this object
+        - node: node for which we require sketch
+        - x : key 'x'
 
-        res = res & node.mask_bm
-        return res
+        Returns: 
+        '''
+        xx = x & node.mask_b # Calculate the intersection of x and the mask for b_bits
+        res = xx * node.m # Multiply the intersection by the constant m
+
+        res = res & node.mask_bm # Calculate the intersection of the result and the mask for modified b_bits
+        return res # Sketch approximation
     
-    def splitChild(self, node, x):
-        # a b-tree split function. Splits child of node at x index
-        z = Node(self.keys_max)
-        y = node.children[x]   # y is to be split
+    def splitChild(self, node, x) -> None:
+        ''' Splits the child of a given node at the index 'x'. It is a B-Tree split function, modified for use in Fusion Trees. It ensures that the tree remains balanced during insertions.
+        Args:
+        - self: mandatory reference to this object
+        - node: node which we have to split
+        - x: index from which node is being split
 
-        # pos of key to propagate
+        Retuns: None
+        '''
+        newnode = Node(self.keys_max) # Create a new node with maximum key capacity
+        child = node.children[x]    # Child at index from which split occurs
+
+        # Position of the key to propogate
         pos_key = (self.keys_max // 2)
 
-        z.key_count = self.keys_max - pos_key - 1
+        newnode.key_count = self.keys_max - pos_key - 1 # set the key count for the new node
 
-        # insert first half keys into z
-        for i in range(z.key_count):
-            z.keys[i] = y.keys[pos_key + i + 1]
-            y.keys[pos_key + i + 1] = None
+        # Insert first half keys into z
+        for i in range(newnode.key_count):
+            newnode.keys[i] = child.keys[pos_key + i + 1]
+            child.keys[pos_key + i + 1] = None
         
-        if not y.isLeaf:
+        # If the child to be split is not a leaf, update the children of the new node
+        if not child.isLeaf:
             for i in range(z.key_count + 1):
-                z.children[i] = y.children[pos_key + i + 1]
+                newnode.children[i] = child.children[pos_key + i + 1]
         
-        y.key_count = self.keys_max - z.key_count - 1
+        child.key_count = self.keys_max - newnode.key_count - 1 #Update the key count for the child
 
-        # insert key into node
-        node.keys[x] = y.keys[pos_key]
+        # Insert key into the parent node
+        node.keys[x] = child.keys[pos_key]
         
-        # same effect as shifting all keys after setting pos_key
-        # to None
-        del y.keys[pos_key]
-        y.keys.append(None)
+        # Remove the propogated key from the child and add a None value to the end of the key list
+        del child.keys[pos_key]
+        child.keys.append(None)
 
-        # insert z as child at x + 1th pos
-        node.children[x + 1] = z
+        # insert the new node as a child at the x + 1th position
+        node.children[x + 1] = newnode
 
-        node.key_count += 1
+        node.key_count += 1 # Increment the key count of the parent node
 
-    def insertNormal(self, node, k):
-        # print(node, node.keys,'\n', node.key_count)
-        # insert k into node when no chance of splitting the root
-        if node.isLeaf:
-            i = node.key_count
-            while i >= 1 and k < node.keys[i - 1]:
+    def insertNormal(self, node, key) -> None:
+        ''' Inserts a key 'key' into a given node when there is no chance of splitting the root. 
+        The method handles two cases:
+            (1) When the node is a leaf, the key is simply inserted at the correct position
+            (2) When the node is not a leaf, the method finds the appropriate child to insert the key into, calls split if needed, and then recursively inserts the key into the child
+        Args:
+        - self: mandatory reference to this object
+        - node: node which we want to insert the key into
+        - key: key to be inserted
+
+        Returns: None
+        '''
+        # insert key into node when Root can't be split
+        if node.isLeaf: # If the node is a leaf
+            i = node.key_count # Get the current key count of the node
+            # Shift keys to the right until the correct position for key is found
+            while i >= 1 and key < node.keys[i - 1]: 
                 node.keys[i] = node.keys[i - 1]
                 i -= 1
-            node.keys[i] = k
-            node.key_count += 1
-            return
-        else:
-            i = node.key_count
-            while i >= 1 and k < node.keys[i - 1]:
-                i -= 1
-            # i = position of appropriate child
+            node.keys[i] = key # Insert key in the correct position
+            node.key_count += 1 # Increment key count of the node
+            return 
+        # If the node is not a leaf node:
+        i = node.key_count # Get the current key count
+        # Find the index of the appropriate child where key should be inserted 
+        while i >= 1 and key < node.keys[i - 1]:
+            i -= 1
+        # i is position of appropriate child
 
-            if node.children[i].key_count == self.keys_max:
-                self.splitChild(node, i)
-                if k > node.keys[i]:
-                    i += 1
-            self.insertNormal(node.children[i], k)
+        # If the child at index i is full, split the child
+        if node.children[i].key_count == self.keys_max:
+            self.splitChild(node, i)
+            # If key is greater than the key at index i, increment i 
+            if key > node.keys[i]:
+                i += 1
+        self.insertNormal(node.children[i], key) # Recursively insert key into the appropriate child
 
 ## IQRA KA PART TO COMMENT BELOW THIS _ ALI KA PART ABOVE THIS ##
 

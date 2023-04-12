@@ -6,11 +6,11 @@ if __name__ == "__main__":
     
     tree.insert(1)
     tree.insert(5)
-    tree.insert(15)
-    tree.insert(16)
     tree.insert(20)
     tree.insert(25)
     tree.insert(4)
+    tree.insert(15)
+    tree.insert(16)
     print(tree.root.keys)
     for i in tree.root.children:
         if i is not None:
