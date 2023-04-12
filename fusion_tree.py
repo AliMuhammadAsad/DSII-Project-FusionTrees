@@ -194,69 +194,74 @@ class FusionTree:
 ## IQRA KA PART TO COMMENT BELOW THIS _ ALI KA PART ABOVE THIS ##
 
     def insert(self, k):
-        # This insert checks if splitting is needed
-        # then it splits and calls normalInsert
-
-        # if root needs splitting, a new node is assigned as root
-        # with split nodes as children
+        # Check if the root node needs splitting due to maximum number of keys
         if self.root.key_count == self.keys_max:
+            # Create a new node to become the new root
             temp_node = Node(self.keys_max)
             temp_node.isLeaf = False
             temp_node.key_count = 0
+            # Make the current root node the child of the new root node
             temp_node.children[0] = self.root
+            # Update the root node to be the new node
             self.root = temp_node
+            # Split the child of the new root node (which is the previous root node)
+            # and insert the new key into one of the split nodes
             self.splitChild(temp_node, 0)
             self.insertNormal(temp_node, k)
         else:
-            self.insertNormal(self.root, k)
+            # If the root node does not need splitting, just insert the new key normally
+            self.insertNormal(self.root, k)      
 
     def successorSimple(self, node, k):
+        # Search for the position of the key in the current node
         i = 0
         while i < node.key_count and k > node.keys[i]:
             i += 1
+        # If the key is found in the current node, return the next key
         if i < node.key_count and k > node.keys[i]:
             return node.keys[i]
+        # If the key is not found in the current node and the node is a leaf, return the key at position i
         elif node.isLeaf:
             return node.keys[i]
+        # If the key is not found in the current node and the node is not a leaf, recursively search for the key in the child node at position i
         else:
             return self.successor2(node.children[i], k)
     
     def parallelComp(self, node, k):
-        # this function should basically give the index such
-        # that sketch of k lies between 2 sketches
+        # Calculate the sketch of the key k using the sketchApprox method
         sketch = self.sketchApprox(node, k)
-        # This will give repeated sketch patterns to allow for comparison
-        # in const time
+        # Repeat the sketch pattern to allow for comparison in constant time
         sketch_long = sketch * node.mask_q
-
+        # Calculate the difference between the node sketch and the long sketch
         res = node.node_sketch - sketch_long
-
-        # mask out unimportant bits
+        # Mask out unimportant bits
         res &= node.mask_sketch
-
-        # find the leading bit. This leading bit will tell position i of
-        # such that sketch(keyi-1) < sketch(k) < sketch(keyi)
+        # Find the leading bit. This will tell the position i such that sketch(key[i-1]) < sketch(k) < sketch(key[i])
         i = 0
         while (1 << i) < res:
             i += 1
         i += 1
+        # Calculate the length of the sketch
         sketch_len = int(pow(node.key_count, 3)) + 1
-        
+        # Calculate the index of the key such that sketch(key[i-1]) < sketch(k) < sketch(key[i])
         return node.key_count - (i // sketch_len)
-
+    
     def successor(self, k, node = None):
         if node == None:
             node = self.root
 
+        # If the current node is empty and it's a leaf node, return -1 
+        # since there is no successor for k in the current leaf node
         if node.key_count == 0:
             if node.isLeaf:
                 return -1
+            # If the current node is an internal node, continue the search 
+            # for the successor in the leftmost child of the node
             else:
                 return self.successor(k, node.children[0])
        
-        # the corner cases are not concretely defined.
-        # other alternative to handle these would be to have
-        # -inf and inf at corners of keys array
+        # If k is less than or equal to the smallest key in the node, then 
+        # the successor of k is the smallest key in the node or its left child
         if node.keys[0] >= k:
             if not node.isLeaf:
                 res = self.successor(k, node.children[0])
@@ -266,48 +271,51 @@ class FusionTree:
                     return min(node.keys[0], res)
             else:
                 return node.keys[0]
-        
+            
+        # If k is greater than the largest key in the node, then 
+        # the successor of k is in the right child of the node, if it exists
         if node.keys[node.key_count - 1] < k:
             if node.isLeaf:
                 return -1
             else:
                 return self.successor(k, node.children[node.key_count])
 
+        # Find the position of k in the node by performing parallel comparison
         pos = self.parallelComp(node, k)
-        # print("pos = ", pos)
 
+        # If pos is out of range, then print an error message and ask for input
         if pos >= node.key_count:
             print(node.keys, pos)
             dump = input()
         
+        # If pos is 0, set it to 1 to make sure x is a valid key
         if pos == 0:
             pos += 1
-            # x = node.keys[pos]
         
-        # find the common prefix
-        # it can be guranteed that successor of k is successor
-        # of next smallest element in subtree
+        # Set x to be the maximum value among the keys at positions pos-1 and pos
         x = max(node.keys[pos - 1], node.keys[pos])
-        # print("x = ", x)
+
+        # Compute the common prefix between k and x
         common_prefix = 0
         i = self.w
         while i >= 0 and (x & (1 << i)) == (k & (1 << i)):
-            # print(i)
             common_prefix |= x & (1 << i) 
             i -= 1
         if i == -1:
             return x
         
+        # Set temp to be the binary number obtained by setting the bit 
+        # at position i to 1 in the common prefix
         temp = common_prefix | (1 << i)
 
+        # Find the position of temp in the node by performing parallel comparison
         pos = self.parallelComp(node, temp)
-        # if pos == 0:
-        # possible error?
-        #     pos += 1
-        # print("pos = ", pos, bin(temp))
+
+        # If the current node is a leaf node, then the successor of k is at position pos
         if node.isLeaf:
             return node.keys[pos]
         else:
+            # Otherwise, continue the search for the successor in the subtree rooted at the child at position pos
             res = self.successor(k, node.children[pos])
             if res == -1:
                 return node.keys[pos]
@@ -318,49 +326,58 @@ class FusionTree:
         if node == None:
             node = self.root
 
+        # If the node is empty, check if it's a leaf node or not
         if node.key_count == 0:
             if node.isLeaf:
                 return -1
             else:
+                # Traverse to the first child of the current node
                 return self.predecessor(k, node.children[0])
        
-        # the corner cases are not concretely defined.
-        # other alternative to handle these would be to have
-        # 0 and inf at corners of keys array
+        # Check if k is smaller than the smallest key in the node
         if node.keys[0] > k:
             if not node.isLeaf:
+                 # Traverse to the first child of the current node
                 return self.predecessor(k, node.children[0])
             else:
+                # k is smaller than the smallest key in the tree
                 return -1
         
+        # Check if k is larger than or equal to the largest key in the node
         if node.keys[node.key_count - 1] <= k:
             if node.isLeaf:
+                # Return the largest key in the current node
                 return node.keys[node.key_count - 1]
             else:
+                # Traverse to the last child of the current node
                 ret =  self.predecessor(k, node.children[node.key_count])
                 return max(ret, node.keys[node.key_count - 1])
 
+        # Find the position of k in the current node
         pos = self.parallelComp(node, k)
 
+        # If the position of k is larger than the number of keys in the node, it's an error
         if pos >= node.key_count:
             print(node.keys, pos, "ERROR? pos > key_count")
             dump = input()
         
+        # If the position of k is 0, it means k is smaller than the smallest key in the node
         if pos == 0:
             pos += 1
         
-        # find the common prefix
-        # it can be guranteed that successor of k is successor
-        # of next smallest element in subtree
+        # Find the common prefix between k and the key in the current node at position pos
         x = node.keys[pos]
         common_prefix = 0
         i = self.w
         while i >= 0 and (x & (1 << i)) == (k & (1 << i)):
             common_prefix |= x & (1 << i) 
             i -= 1
-        if i == -1:     # i.e. if x is exactly equal to k
+
+        # If x is exactly equal to k, return x
+        if i == -1:
             return x
         
+        # Find the key with the largest common prefix with k that is smaller than k
         temp = common_prefix | ((1 << i) - 1)
         pos = self.parallelComp(node, temp)
         if pos == 0:
@@ -380,14 +397,17 @@ class FusionTree:
                 return node.keys[pos - 1]
             else:
                 return res
-
+            
     def initiate(self, node):
         if node == None:
             node = Node(self.keys_max)
+        # Call the initiateNode function to set the node's fields to their default values
         self.initiateNode(node)
+        # If the node is not a leaf, then recursively call initiate on its children
         if not node.isLeaf:
             for i in range(node.keys_max + 1):
                 self.initiate(node.children[i])
     
     def initiateTree(self):
+        # Call initiate function on the root node
         self.initiate(self.root)
