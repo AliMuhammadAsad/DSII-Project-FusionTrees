@@ -1,3 +1,9 @@
+import hashlib
+
+def compute_hash(book_name):
+    hash = int(hashlib.sha256(book_name.encode('utf-8')).hexdigest(), 16) % 10**8
+    return hash
+
 class Node:
     """Class for fusion tree node"""
     def __init__(self, max_keys = None):
@@ -51,6 +57,8 @@ class FusionTree:
         #Initializes the root node of this tree with max number of keys
         self.root = Node(self.keys_max)
         self.root.isLeaf = True
+        self.size = 0
+        self.keez = []
 
     def getDiffBits(self, keys) -> list:
         ''' A method that returns a list of of the bits that are different between all pairs of keys given as a list
@@ -68,7 +76,7 @@ class FusionTree:
             for j in range(i): # Iterating over previous keys
                 w = self.w  #set w as word length
                 #Find the position of the first different bit and update the bit mask 
-                while (keys[i] & 1 << w) == (keys[j] & 1 << w) and w >= 0:  
+                while (keys[i][0] & 1 << w) == (keys[j][0] & 1 << w) and w >= 0:  
                     w -= 1
                 if w >= 0: 
                     bits |= 1 << w
@@ -159,13 +167,14 @@ class FusionTree:
 
             # Calculate the node sketch, mask_q, and mask_sketch for each key in the node 
             for i in range(node.key_count):
-                sketch = self.sketchApprox(node, node.keys[i]) # sketch approximation
-                temp = 1 << r3 # temp mask
-                temp |= sketch # add the sketch to the temp mask 
-                node.node_sketch <<= sketch_len # shift node sketch left by sketch_len bits
-                node.node_sketch |= temp # add temporary mask to the node sketch 
-                node.mask_q |= 1 << i * (sketch_len) # Update mask_q
-                node.mask_sketch |= (1 << (sketch_len - 1)) << i * (sketch_len) # Update mask_sketch
+                if node.keys[i] is not None:
+                    sketch = self.sketchApprox(node, node.keys[i][0]) # sketch approximation
+                    temp = 1 << r3 # temp mask
+                    temp |= sketch # add the sketch to the temp mask 
+                    node.node_sketch <<= sketch_len # shift node sketch left by sketch_len bits
+                    node.node_sketch |= temp # add temporary mask to the node sketch 
+                    node.mask_q |= 1 << i * (sketch_len) # Update mask_q
+                    node.mask_sketch |= (1 << (sketch_len - 1)) << i * (sketch_len) # Update mask_sketch
         return
     
     def sketchApprox(self, node, x):
@@ -208,7 +217,7 @@ class FusionTree:
         
         # If the child to be split is not a leaf, update the children of the new node
         if not child.isLeaf:
-            for i in range(z.key_count + 1):
+            for i in range(newnode.key_count + 1):
                 newnode.children[i] = child.children[pos_key + i + 1]
         
         child.key_count = self.keys_max - newnode.key_count - 1 #Update the key count for the child
@@ -241,7 +250,7 @@ class FusionTree:
         if node.isLeaf: # If the node is a leaf
             i = node.key_count # Get the current key count of the node
             # Shift keys to the right until the correct position for key is found
-            while i >= 1 and key < node.keys[i - 1]: 
+            while i >= 1 and key[0] < node.keys[i - 1][0]: 
                 node.keys[i] = node.keys[i - 1]
                 i -= 1
             node.keys[i] = key # Insert key in the correct position
@@ -250,7 +259,7 @@ class FusionTree:
         # If the node is not a leaf node:
         i = node.key_count # Get the current key count
         # Find the index of the appropriate child where key should be inserted 
-        while i >= 1 and key < node.keys[i - 1]:
+        while i >= 1 and key[0] < node.keys[i - 1][0]:
             i -= 1
         # i is position of appropriate child
 
@@ -258,13 +267,23 @@ class FusionTree:
         if node.children[i].key_count == self.keys_max:
             self.splitChild(node, i)
             # If key is greater than the key at index i, increment i 
-            if key > node.keys[i]:
+            if key[0] > node.keys[i][0]:
                 i += 1
         self.insertNormal(node.children[i], key) # Recursively insert key into the appropriate child
 
-## IQRA KA PART TO COMMENT BELOW THIS _ ALI KA PART ABOVE THIS ##
+    def insert(self, val) -> None:
+        ''' Inserts a new key 'k' into the Tree using the insertNormal method as a helper function. 
+        This method handles 2 cases:
+            (1) If the root key count is at capacity, then it creates a temporary node and makes it the new root node, then the root temp node is made the new root node, and split is called on the previous root node. The key is then inserted into either one of the new nodes. The insertNormal function is called to find the appropriate node to insert into.
+            (2) If root does not need splitting, then it is inserted as normal.
+        Args:
+        - self: mandatory reference to this object
+        - k: the key that has to be inserted
 
-    def insert(self, k):
+        Returns: None        
+        '''
+        # k = compute_hash(val[1])
+        # t = (k, val[0], val[1], val[2], val[3], val[4])
         # Check if the root node needs splitting due to maximum number of keys
         if self.root.key_count == self.keys_max:
             # Create a new node to become the new root
@@ -278,13 +297,23 @@ class FusionTree:
             # Split the child of the new root node (which is the previous root node)
             # and insert the new key into one of the split nodes
             self.splitChild(temp_node, 0)
-            self.insertNormal(temp_node, k)
+            self.insertNormal(temp_node, val)
         else:
             # If the root node does not need splitting, just insert the new key normally
-            self.insertNormal(self.root, k)      
+            self.insertNormal(self.root, val)      
+        self.size += 1
+        self.keez.append(val)
 
     def successorSimple(self, node, k):
-        # Search for the position of the key in the current node
+        ''' Searches for the position of the key in the current node
+        Args:
+        - self: mandatory reference to this object
+        - node: node in which key is being searched for
+        - k: key that we want to find
+
+        Returns: key
+        '''
+
         i = 0
         while i < node.key_count and k > node.keys[i]:
             i += 1
@@ -469,7 +498,7 @@ class FusionTree:
             else:
                 return res
             
-    def initiate(self, node):
+    def initiate(self, node : Node):
         if node == None:
             node = Node(self.keys_max)
         # Call the initiateNode function to set the node's fields to their default values
@@ -482,3 +511,148 @@ class FusionTree:
     def initiateTree(self):
         # Call initiate function on the root node
         self.initiate(self.root)
+
+    # def mergeNodes(self, parentNode : Node, childIndex : int) -> None:
+    #     ''' Method that will be used in the delete function to handle merging of the nodes whenever required
+    #     Args:
+    #     - self: mandatory reference to this object
+    #     - parentNode: the parentNode of the key
+    #     - childIndex: index in the child node
+
+    #     Returns: None
+    #     '''
+    #     # Merge left and right children of the parent node
+    #     leftChild = parentNode.children[childIndex]
+    #     rightChild = parentNode.children[childIndex + 1]
+
+    #     for i in range(rightChild.key_count):
+    #         leftChild.keys[leftChild.key_count] = rightChild.keys[i]
+    #         leftChild.children[leftChild.key_count] = rightChild.children[i]
+    #         leftChild.key_count += 1
+        
+    #     leftChild.children[leftChild.key_count] = rightChild.children[rightChild.key_count]
+
+    #     for i in range(childIndex, parentNode.key_count - 1):
+    #         parentNode.keys[i] = parentNode.keys[i + 1]
+    #         parentNode.children[i + 1] = parentNode.children[i + 2]
+        
+    #     parentNode.key_count -= 1
+    
+    # def redestributeNodes(self, parentNode : Node, childIndex : int) -> None:
+    #     # Redestribute the keys between the left and right child of the parent Node
+    #     leftChild = parentNode.children[childIndex]
+    #     rightChild = parentNode.children[childIndex + 1]
+
+    #     if leftChild.key_count < rightChild.key_count:
+    #         leftChild.keys[leftChild.key_count] = parentNode.keys[childIndex]
+    #         leftChild.children[leftChild.key_count + 1] = rightChild.children[0]
+    #         leftChild.key_count += 1
+
+    #         parentNode.keys[childIndex] = rightChild.keys[0]
+
+    #         for i in range(rightChild.key_count - 1):
+    #             rightChild.keys[i] = rightChild.keys[i + 1]
+    #             rightChild.children[i] = rightChild.children[i + 1]
+
+    #         rightChild.children[rightChild.key_count - 1] = rightChild.children[rightChild.key_count]
+    #         rightChild.key_count -= 1
+    #     else:
+    #         for i in range(rightChild.key_count):
+    #             rightChild.keys[rightChild.key_count] = rightChild.keys[rightChild.key_count - 1]
+    #             rightChild.children[rightChild.key_count + 1] = rightChild.children[rightChild.key_count]
+    #             rightChild.key_count -= 1
+
+    #         rightChild.keys[0] = parentNode.keys[childIndex]
+    #         rightChild.children[0] = leftChild.children[leftChild.key_count]
+
+    #         parentNode.keys[childIndex] = leftChild.keys[leftChild.key_count - 1]
+    #         leftChild.key_count -= 1
+    
+    # def deleteAndResolve(self, k, node = None) -> None:
+    #     if node is None: node = self.root
+
+    #     # if node is empty, the key is not found
+    #     if node.key_count == 0: return 
+
+    #     # find the position of k in the current node
+    #     pos = self.parallelComp(node, k)
+        
+    #     # if the position of k is within the bounds of the keys in the node and the key at the position is equal to k
+    #     if pos < node.key_count and node.keys[pos] == k:
+    #         # if the node is a leaf, delete the key from the node
+    #         if node.isLeaf:
+    #             for i in range(pos, node.key_count):
+    #                 node.keys[i] = node.keys[i + 1]
+    #             node.key_count -= 1
+    #             return
+        
+    #         # If the node is not a leaf, find the predecessor or the successor of the key and replace the key with its predecessor or successor. Then, recursively delete the predecessor or successor from the appropriate subtree.
+    #         leftChild = node.children[pos]
+    #         rightChild = node.children[pos + 1]
+
+    #         if leftChild.key_count >= (self.keys_max + 1) // 2:
+    #             pred = self.predecessor(k, leftChild)
+    #             node.keys[pos] = pred
+    #             self.deleteAndResolve(pred, leftChild)
+    #         else: 
+    #             succ = self.successor(k, rightChild)
+    #             node.keys[pos] = succ
+    #             self.deleteAndResolve(succ, rightChild)
+    #     # If key not found in the current node, then continue searching in the child nodes
+    #     else:
+    #         if node.isLeaf: return
+    #         if node.children[pos].key_count < (self.keys_max + 1) // 2:
+    #             if pos > 0 and node.children[pos - 1].key_count >= (self.keys_max + 1) // 2:
+    #                 self.redestributeNodes(node, pos - 1)
+    #             elif pos > 0 and node.children[pos + 1].key_count >= (self.keys_max + 1) // 2:
+    #                 self.redestributeNodes(node, pos)
+    #             else:
+    #                 if pos > 0:
+    #                     self.mergeNodes(node, pos - 1); pos -= 1
+    #                 else: self.mergeNodes(node, pos)
+
+    #                 if node.key_count == 0 and node == self.root:
+    #                     self.root = node.children[0]
+    #         self.deleteAndResolve(k, node.children[pos])
+
+    
+    # def delete(self, k, node = None)-> None:
+    #     ''' Delete method which deletes a key 'k' from a given node
+    #     Args:
+    #     - self: manadatory reference to this object
+    #     - node: node from which key is to be deleted
+    #     - k: key that has to be deleted
+
+    #     Returns: None
+    #     '''
+    #     self.deleteAndResolve(k)
+
+        # if node is None: # if no node is provided, then we start search from the root node 
+        #     node = self.root 
+        
+        # if node.key_count == 0: # if the node is empty, then key does not exist so key not found
+        #     return
+        
+        # # Find the position of k in the current node
+        # pos = self.parallelComp(node, k)
+
+        # # If the position of k is within bounds of the key in the node and the key at the position is equal to k
+        # if pos < node.key_count and node.keys[pos] == k:
+        #     if node.isLeaf: #If node is a leaf then delete the key from the node by shifting the keys forward to the left, and decrement the total key count
+        #         for i in range(pos, node.key_count):
+        #             node.keys[i] = node.keys[i + 1]
+        #         node.key_count -= 1
+        #         return
+            
+        #     #If node is not a leaf then find its predecessor or successor and replace the key with the predecessor or successor
+        #     pred = self.predecessor(k, node)
+        #     if pred != -1:
+        #         node.keys[pos] = pred
+        #         self.delete(pred, node.children[pos])
+        #     else:
+        #         succ = self.successor(k, node)
+        #         node.keys[pos] = succ
+        #         self.delete(succ, node.children[pos + 1])
+        # elif node.isLeaf: return # if node is a leaf, then key not found
+        # else: # if key not found in current node, then continue search in the child node at position pos
+        #     self.delete(k, node.children[pos])
