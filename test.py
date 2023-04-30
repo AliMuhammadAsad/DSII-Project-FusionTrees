@@ -1,4 +1,5 @@
-from fusion_tree import *
+# from fusion_tree import *
+from fusiontree import *
 
 # if __name__ == "__main__":
 #     # create a fusion tree of degree 3
@@ -80,46 +81,46 @@ from fusion_tree import *
 #     print(f"Sorted keys are : {sorted_keez}")
 
 
-if __name__ == "__main__":
-    tree = FusionTree(243)
-    book_lst = []
-    f = open("Books_Data.csv", encoding="utf8")
-    # f = open("books.csv", encoding="utf8")
-    f.readline()
-    count = 0
-    for i in f:
-        i = i.split(",")
-        lst = [word.strip() for word in i]
-        lst = [int(lst[0])] + lst[1:]
-        # title = lst[1]
-        # ascii_list = [ord(char) for char in title]
-        # s = ""
-        # for i in ascii_list:
-        #     s += str(i)
-        # s = int(s)
-        # lst.insert(0, s)
-        # print(lst)
-        # hval = compute_hash(lst[1])
-        # newlst = [hval] + lst
-        # t = (newlst[0], newlst[1], newlst[2], newlst[3], newlst[4], newlst[5])
-        book_lst.append(lst)
-        # book_lst.append(t)
-        count += 1
-        # if count == 9: break
-        # tree.insert(lst)
-    f.close()
-    # print(book_lst)
-    for book in book_lst:
-        print(book)
-        tree.insert(book)
-    tree.initiateTree()
-    print(f"The tree is of size {tree.size}")
-    # print(f"They tree has elements {sorted(tree.keez, key = lambda x: x[0])}")
+# if __name__ == "__main__":
+#     tree = FusionTree(243)
+#     book_lst = []
+#     f = open("Books_Data.csv", encoding="utf8")
+#     # f = open("books.csv", encoding="utf8")
+#     f.readline()
+#     count = 0
+#     for i in f:
+#         i = i.split(",")
+#         lst = [word.strip() for word in i]
+#         lst = [int(lst[0])] + lst[1:]
+#         # title = lst[1]
+#         # ascii_list = [ord(char) for char in title]
+#         # s = ""
+#         # for i in ascii_list:
+#         #     s += str(i)
+#         # s = int(s)
+#         # lst.insert(0, s)
+#         # print(lst)
+#         # hval = compute_hash(lst[1])
+#         # newlst = [hval] + lst
+#         # t = (newlst[0], newlst[1], newlst[2], newlst[3], newlst[4], newlst[5])
+#         book_lst.append(lst)
+#         # book_lst.append(t)
+#         count += 1
+#         # if count == 9: break
+#         # tree.insert(lst)
+#     f.close()
+#     # print(book_lst)
+#     for book in book_lst:
+#         print(book)
+#         tree.insert(book)
+#     tree.initiateTree()
+#     print(f"The tree is of size {tree.size}")
+#     # print(f"They tree has elements {sorted(tree.keez, key = lambda x: x[0])}")
 
-    for i in tree.root.children:
-        if i is not None:
-            print(i, " has keys: ", i.keys)
-            if not i.isLeaf:
-                for j in i.children:
-                    if j is not None:
-                        print(j, " has keys :", j.keys)
+#     for i in tree.root.children:
+#         if i is not None:
+#             print(i, " has keys: ", i.keys)
+#             if not i.isLeaf:
+#                 for j in i.children:
+#                     if j is not None:
+#                         print(j, " has keys :", j.keys)
